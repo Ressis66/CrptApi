@@ -22,7 +22,7 @@ public class CrptApi {
   private long lastRequestTime;
   private long requestsInInterval;
 
-  private static class CrptDoc {
+  private class CrptDoc {
     private Description description;
     private String doc_id;
     private String doc_status;
@@ -75,7 +75,7 @@ public class CrptApi {
           '}';
     }
   }
-  private static class Product {
+  private class Product {
     private String certificate_document;
     private LocalDate certificate_document_date;
     private String certificate_document_number;
@@ -116,7 +116,7 @@ public class CrptApi {
     }
   }
 
-  private static class Description {
+  private class Description {
     private String participantInn;
 
     public Description(String participantInn) {
