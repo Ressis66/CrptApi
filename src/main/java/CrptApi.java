@@ -1,6 +1,8 @@
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
@@ -19,10 +21,10 @@ public class CrptApi {
   private final ReentrantLock lock = new ReentrantLock();
   private final long limit;
   private final TimeUnit timeUnit;
-  private long lastRequestTime;
-  private long requestsInInterval;
+  private static long lastRequestTime;
+  private static long requestsInInterval;
 
-  private class CrptDoc {
+  static class CrptDoc implements Serializable{
     private Description description;
     private String doc_id;
     private String doc_status;
@@ -75,7 +77,7 @@ public class CrptApi {
           '}';
     }
   }
-  private class Product {
+ static class Product implements Serializable {
     private String certificate_document;
     private LocalDate certificate_document_date;
     private String certificate_document_number;
@@ -116,7 +118,7 @@ public class CrptApi {
     }
   }
 
-  private class Description {
+ static class Description implements Serializable{
     private String participantInn;
 
     public Description(String participantInn) {
@@ -137,34 +139,35 @@ public class CrptApi {
     this.requestsInInterval = 0;
   }
 
-  public void createDocument(CrptDoc document, String signature) throws InterruptedException, IOException {
+  public  void createDocument(CrptDoc document, String signature) throws InterruptedException, IOException {
     if (!tryAcquire()) {
       throw new IllegalStateException("API call limit exceeded");
     }
 
-    try {
-      HttpClient client = HttpClient.newBuilder()
-          .version(Version.HTTP_2)
-          .followRedirects(Redirect.NORMAL)
-          .build();
+      try {
+        HttpClient client = HttpClient.newBuilder()
+            .version(Version.HTTP_2)
+            .followRedirects(Redirect.NORMAL)
+            .build();
 
-      ObjectMapper mapper = new ObjectMapper();
-      String jsonDocument = mapper.writeValueAsString(document);
-      String jsonSignature = signature;
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
+        String jsonDocument = mapper.writeValueAsString(document);
+        String jsonSignature = signature;
 
-      HttpRequest request = HttpRequest.newBuilder()
-          .uri(URI.create("https://ismp.crpt.ru/api/v3/lk/documents/create"))
-          .header("Content-Type", "application/json")
-          .POST(HttpRequest.BodyPublishers.ofString(jsonDocument))
-          .header("X-Signature", jsonSignature)
-          .build();
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create("https://ismp.crpt.ru/api/v3/lk/documents/create"))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(jsonDocument))
+            .header("X-Signature", jsonSignature)
+            .build();
 
-      HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
-      System.out.println("Response: " + response.body());
-    } finally {
-      release();
+        HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
+        System.out.println("Response: " + response.body());
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
     }
-  }
 
   private boolean tryAcquire() throws InterruptedException {
     long currentTime = System.currentTimeMillis() / 1000;
@@ -194,12 +197,5 @@ public class CrptApi {
     return true;
   }
 
-  private void release() {
-    lock.lock();
-    try {
-      lock.notifyAll();
-    } finally {
-      lock.unlock();
-    }
-  }
+
 }
